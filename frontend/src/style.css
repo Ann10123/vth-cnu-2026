@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #0f1923;
+  }
+}
+
+.bg-cyber-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 70, 85, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 70, 85, 0.05) 1px, transparent 1px);
+}
+
+.shadow-neon {
+  box-shadow: 0 0 15px rgba(255, 70, 85, 0.35);
+}
+
+.clip-corner {
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.clip-card {
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+}
+
+.clip-button {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+}
+
+.clip-tag {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+}

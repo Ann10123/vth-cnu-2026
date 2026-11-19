@@ -1,0 +1,15 @@
+.gradle/
+build/
+**/build/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env.cloud
+frontend/.env.cloud.local
+.idea/
+*.iml
+.micronaut/
+AGENTS.local.md
+CLAUDE.local.md
+ANTIGRAVITY.local.md

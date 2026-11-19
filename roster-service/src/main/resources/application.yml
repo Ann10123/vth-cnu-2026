@@ -1,0 +1,20 @@
+micronaut:
+  application:
+    name: roster-service
+  server:
+    port: ${PORT:8080}
+    cors:
+      enabled: true
+
+datasources:
+  default:
+    driver-class-name: org.postgresql.Driver
+    db-type: postgres
+    dialect: POSTGRES
+
+flyway:
+  datasources:
+    default:
+      enabled: true
+      locations:
+        - "classpath:db/migration"

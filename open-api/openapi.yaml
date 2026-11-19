@@ -1,0 +1,360 @@
+openapi: 3.1.0
+info:
+  title: Valorant Tactical Hub API Spec
+  version: 1.0.0
+  description: Central OpenAPI specification for FSPM CDU Microservices Starter Kit (`ua.cdu.edu.fotius.fspm.valorant`).
+
+servers:
+  - url: http://localhost:8080
+    description: Roster Service (Tactical Draft & Auth Provider)
+  - url: http://localhost:8081
+    description: Match Analytics Service
+  - url: http://localhost:8082
+    description: Rank Calculator Service (Stateless Internal Engine)
+
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: Authenticate player and issue JWT token
+      tags: [Auth & Identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT Authentication Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /api/v1/rosters:
+    post:
+      summary: Create a new tactical roster for a map
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRosterRequest'
+      responses:
+        '201':
+          description: Roster created successfully
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/RosterResponse'
+
+  /api/v1/rosters/{id}:
+    get:
+      summary: Get roster details with HAL _links (HATEOAS)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Roster details
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/RosterResponse'
+
+  /api/v1/rosters/{id}/agents:
+    post:
+      summary: Pick an agent for a slot (1..5) in the roster (DRAFT state only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAgentRequest'
+      responses:
+        '200':
+          description: Agent picked
+
+  /api/v1/rosters/{id}/agents/{agentKey}:
+    delete:
+      summary: Remove an agent pick from the roster (DRAFT state only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent pick removed
+
+  /api/v1/rosters/{id}/captain:
+    put:
+      summary: Transfer captain status to another player (Captain Only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newCaptainId:
+                  type: string
+      responses:
+        '200':
+          description: Captain transferred
+
+  /api/v1/rosters/{id}/lock:
+    post:
+      summary: Lock in current roster composition (Captain Only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Roster locked
+
+  /api/v1/rosters/{id}/unlock:
+    post:
+      summary: Unlock roster back to DRAFT state (Captain Only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Roster unlocked
+
+  /api/v1/matches/submit:
+    post:
+      summary: Submit match results
+      tags: [Match Analytics]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchSubmissionRequest'
+      responses:
+        '200':
+          description: Match recorded and RR recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchSubmissionResponse'
+
+  /api/v1/matches/history/{playerId}:
+    get:
+      summary: Get match history for a player
+      tags: [Match Analytics]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of past matches
+
+  /internal/v1/calculate-rating:
+    post:
+      summary: Internal stateless RR delta calculation
+      tags: [Rank Calculator (Internal)]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RankCalculationRequest'
+      responses:
+        '200':
+          description: RR Delta & Tier Status
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [playerTag, pin]
+      properties:
+        playerTag:
+          type: string
+          example: ProGamer#EUW
+        pin:
+          type: string
+          example: "1234"
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 3600
+
+    CreateRosterRequest:
+      type: object
+      required: [mapName, creatorPlayerId]
+      properties:
+        mapName:
+          type: string
+        creatorPlayerId:
+          type: string
+
+    AddAgentRequest:
+      type: object
+      required: [playerId, agentKey]
+      properties:
+        slot:
+          type: integer
+          minimum: 1
+          maximum: 5
+        playerId:
+          type: string
+        agentKey:
+          type: string
+
+    RosterResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        captainId:
+          type: string
+        mapName:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, LOCKED, ARCHIVED]
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberDto'
+        _links:
+          type: object
+
+    MemberDto:
+      type: object
+      properties:
+        slot:
+          type: integer
+        playerId:
+          type: string
+        playerTag:
+          type: string
+        agentKey:
+          type: string
+        roleType:
+          type: string
+
+    MatchSubmissionRequest:
+      type: object
+      properties:
+        rosterId:
+          type: string
+        playerId:
+          type: string
+        mapName:
+          type: string
+        isWin:
+          type: boolean
+        roundMargin:
+          type: integer
+        kills:
+          type: integer
+        deaths:
+          type: integer
+        assists:
+          type: integer
+        combatScore:
+          type: integer
+        isAfk:
+          type: boolean
+
+    MatchSubmissionResponse:
+      type: object
+      properties:
+        matchId:
+          type: string
+        deltaRR:
+          type: integer
+        tierStatus:
+          type: string
+
+    RankCalculationRequest:
+      type: object
+      properties:
+        isWin:
+          type: boolean
+        roundMargin:
+          type: integer
+        kills:
+          type: integer
+        deaths:
+          type: integer
+        assists:
+          type: integer
+        combatScore:
+          type: integer
+        isAfk:
+          type: boolean

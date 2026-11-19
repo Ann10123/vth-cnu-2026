@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valorant Tactical HUD Console — FSPM CDU</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body class="bg-valodark text-gray-100 min-h-screen flex flex-col items-center p-4 md:p-8 relative">
+
+    <div class="fixed inset-0 bg-cyber-grid bg-[length:40px_40px] opacity-15 pointer-events-none"></div>
+
+    <header class="w-full max-w-7xl flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-gray-800/80 pb-4 z-10 gap-4">
+        <div class="flex items-center space-x-4">
+            <div class="w-3 h-10 bg-valored clip-tag shadow-neon"></div>
+            <div>
+                <h1 class="font-teko text-4xl md:text-5xl tracking-wider text-white uppercase leading-none font-bold">
+                    VALORANT <span class="text-valored">TACTICAL HUD</span>
+                </h1>
+                <div class="text-[11px] text-gray-400 font-mono tracking-widest uppercase flex items-center space-x-2">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>ua.cdu.edu.fotius.fspm.valorant</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 text-xs font-mono">
+            <div id="env-mode-badge" class="bg-blue-950/80 text-blue-300 border border-blue-500/40 px-3 py-1.5 clip-corner font-semibold uppercase">
+                Mode: Loading...
+            </div>
+
+            <div id="auth-box" class="bg-valocard/90 p-1.5 clip-corner border border-gray-700/60 flex items-center space-x-2">
+                <select id="user-select" class="bg-valodark border border-gray-700 px-2 py-1 rounded text-gray-200 text-xs font-mono focus:outline-none">
+                    <option value="p-001" data-player-tag="ProGamer#EUW">ProGamer#EUW [CAPTAIN]</option>
+                    <option value="p-002" data-player-tag="Tactician#UA">Tactician#UA [PLAYER]</option>
+                    <option value="p-003" data-player-tag="DuelistKing#NA">DuelistKing#NA [PLAYER]</option>
+                </select>
+                <button id="login-btn" class="bg-valored hover:bg-red-600 text-white px-3 py-1 font-teko text-sm tracking-wider uppercase clip-tag transition">
+                    JWT Login
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6 z-10">
+        <section class="lg:col-span-2 space-y-6">
+            <div class="bg-valocard/90 backdrop-blur-md p-6 clip-card border border-gray-800 shadow-2xl space-y-6">
+                <div id="roster-header">Loading map background...</div>
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800/60 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-1.5 h-4 bg-valored"></span>
+                        <h3 class="font-teko text-2xl uppercase tracking-wider text-white">Active Roster Composition (5 Slots)</h3>
+                    </div>
+                    <div id="hateoas-actions" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div id="agents-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+            </div>
+
+            <div class="bg-valocard/90 backdrop-blur-md p-5 clip-card border border-gray-800">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-teko text-xl uppercase tracking-wider text-gray-300">Agent Catalog (Click to add to Draft)</h3>
+                    <span id="catalog-status" class="text-[10px] font-mono text-emerald-400">Live Riot API Online</span>
+                </div>
+                <div id="catalog-grid" class="grid grid-cols-4 sm:grid-cols-8 gap-2"></div>
+            </div>
+        </section>
+
+        <section class="space-y-6">
+            <div class="bg-valocard/90 backdrop-blur-md p-6 clip-card border border-gray-800 shadow-2xl">
+                <div class="flex items-center space-x-2 mb-4 border-b border-gray-800/60 pb-2">
+                    <span class="w-1.5 h-4 bg-blue-500"></span>
+                    <h3 class="font-teko text-2xl uppercase tracking-wider text-white">Match Performance Report</h3>
+                </div>
+
+                <form id="match-form" class="space-y-4 font-mono text-xs">
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-400 mb-1">Match Outcome</label>
+                        <select id="outcome" class="w-full bg-valodark border border-gray-700/80 p-2.5 rounded text-gray-200 focus:border-valored focus:outline-none">
+                            <option value="WIN">VICTORY (WIN)</option>
+                            <option value="LOSS">DEFEAT (LOSS)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 mb-1">Round Margin</label>
+                            <input type="number" id="margin" value="5" min="1" max="13" class="w-full bg-valodark border border-gray-700/80 p-2.5 rounded text-gray-200">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-400 mb-1">ACS Score</label>
+                            <input type="number" id="acs" value="310" class="w-full bg-valodark border border-gray-700/80 p-2.5 rounded text-gray-200">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[9px] uppercase text-gray-400 mb-1">Kills</label>
+                            <input type="number" id="kills" value="22" class="w-full bg-valodark border border-gray-700/80 p-2 rounded text-gray-200 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] uppercase text-gray-400 mb-1">Deaths</label>
+                            <input type="number" id="deaths" value="12" class="w-full bg-valodark border border-gray-700/80 p-2 rounded text-gray-200 text-center">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] uppercase text-gray-400 mb-1">Assists</label>
+                            <input type="number" id="assists" value="5" class="w-full bg-valodark border border-gray-700/80 p-2 rounded text-gray-200 text-center">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-match-btn" class="w-full bg-valored hover:bg-red-600 text-white font-teko text-xl tracking-wider py-2.5 clip-button transition-all uppercase shadow-neon">
+                        Submit Game Result
+                    </button>
+                </form>
+
+                <div id="match-result-card" class="mt-4"></div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

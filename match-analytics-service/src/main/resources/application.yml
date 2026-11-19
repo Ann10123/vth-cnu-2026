@@ -1,0 +1,28 @@
+micronaut:
+  application:
+    name: match-analytics-service
+  server:
+    port: ${PORT:8081}
+    cors:
+      enabled: true
+
+rank:
+  calculator:
+    url: ${RANK_CALCULATOR_URL:`http://localhost:8082`}
+
+roster:
+  service:
+    url: ${ROSTER_SERVICE_URL:`http://localhost:8080`}
+
+datasources:
+  default:
+    driver-class-name: org.postgresql.Driver
+    db-type: postgres
+    dialect: POSTGRES
+
+flyway:
+  datasources:
+    default:
+      enabled: true
+      locations:
+        - "classpath:db/migration"
