@@ -6,6 +6,39 @@ const ANALYTICS_SERVICE = import.meta.env.VITE_ANALYTICS_SERVICE_URL;
 const MODE_NAME = import.meta.env.VITE_MODE_NAME || 'Development';
 let CURRENT_USER_ID = localStorage.getItem('user_id') || 'p-001';
 
+// Resolves a HAL link href to an absolute URL. Server may emit either a
+// service-relative href ("/api/v1/rosters/...") or an absolute cross-service href
+// ("http://analytics.../submit"). The client must not know which service owns a
+// link — that is the whole point of following _links.
+export function resolveHalUrl(href) {
+    return /^https?:\/\//i.test(href) ? href : `${ROSTER_SERVICE}${href}`;
+}
+
+// Mock backend ONLY (used when ROSTER_SERVICE === 'mock'). Mirrors
+// RosterController.toHalResponse(): given a roster's current state, it returns the
+// _links the real server *would* return. Action handlers read currentRoster._links
+// in mock mode exactly as they do against the live backend, so the client logic is
+// identical in both modes and this is the single place mock hrefs are defined.
+function mockServerLinks(roster) {
+    const id = roster.id;
+    const links = { self: { href: `/api/v1/rosters/${id}`, method: 'GET' } };
+    const members = roster.members || [];
+    if (roster.status === 'DRAFT') {
+        links.add_agent = { href: `/api/v1/rosters/${id}/agents`, method: 'POST' };
+        links.transfer_captain = { href: `/api/v1/rosters/${id}/captain`, method: 'PUT' };
+        if (members.length >= 5) links.lock_in = { href: `/api/v1/rosters/${id}/lock`, method: 'POST' };
+        for (const m of members) {
+            links[`remove_agent_${m.agentKey}`] = { href: `/api/v1/rosters/${id}/agents/${m.agentKey}`, method: 'DELETE' };
+        }
+    } else if (roster.status === 'LOCKED') {
+        links.unlock = { href: `/api/v1/rosters/${id}/unlock`, method: 'POST' };
+        links.submit_match = { href: `${ANALYTICS_SERVICE}/api/v1/matches/submit`, method: 'POST' };
+    } else if (roster.status === 'ARCHIVED') {
+        links.unarchive = { href: `/api/v1/rosters/${id}/unarchive`, method: 'POST' };
+    }
+    return links;
+}
+
 const MAPS = [
     { name: 'Ascent', splash: 'https://media.valorant-api.com/maps/7ae2338e-4174-0ec1-a713-72ba63a65e38/splash.png' },
     { name: 'Bind', splash: 'https://media.valorant-api.com/maps/2c009f69-416f-43fc-a73a-4500c5c86dcd/splash.png' },
@@ -103,13 +136,9 @@ export async function loadRoster() {
             captainId: "p-001",
             mapName: "Ascent",
             status: "DRAFT",
-            members: [],
-            _links: {
-                self: { href: "/api/v1/rosters/r-101", method: "GET" },
-                add_agent: { href: "/api/v1/rosters/r-101/agents", method: "POST" },
-                lock_in: { href: "/api/v1/rosters/r-101/lock", method: "POST" }
-            }
+            members: []
         };
+        currentRoster._links = mockServerLinks(currentRoster);
         renderRosterUI(currentRoster);
         return;
     }
@@ -123,6 +152,7 @@ export async function loadRoster() {
     }
 
     try {
+        // Hardcoded roster URL with our fixed ID. In real life this would be provided from roster selection UI or by the component caller.
         const res = await fetch(`${ROSTER_SERVICE}/api/v1/rosters/r-101`, {
             headers: { 
                 'X-Player-Id': CURRENT_USER_ID,
@@ -268,6 +298,14 @@ export function renderRosterUI(roster, reason = 'unknown') {
         btn.onclick = () => executeHalAction(roster._links.unlock);
         actionsBox.appendChild(btn);
     }
+
+    if (roster._links && roster._links.unarchive) {
+        const btn = document.createElement('button');
+        btn.className = 'bg-blue-600 hover:bg-blue-700 text-white font-teko text-lg tracking-wider px-4 py-1.5 clip-button uppercase';
+        btn.textContent = 'UNARCHIVE ROSTER';
+        btn.onclick = () => unarchiveRoster();
+        actionsBox.appendChild(btn);
+    }
 }
 
 function renderAgentCatalog() {
@@ -311,7 +349,7 @@ window.selectAgentFromCatalog = async (agentKey) => {
     const playerId = `p-00${slot}`;
 
     if (ROSTER_SERVICE === 'mock') {
-        // Mock mode: update local state
+        // Mock mode: update local state, then let the mock "server" recompute _links
         currentRoster.members.push({
             slot,
             playerId,
@@ -319,13 +357,19 @@ window.selectAgentFromCatalog = async (agentKey) => {
             agentKey,
             roleType: "PLAYER"
         });
+        currentRoster._links = mockServerLinks(currentRoster);
         renderRosterUI(currentRoster);
         return;
     }
 
-    // Call backend API
-    const res = await fetch(`${ROSTER_SERVICE}/api/v1/rosters/${currentRoster.id}/agents`, {
-        method: 'POST',
+    // HATEOAS: post to the link the server published, not a rebuilt path.
+    const addLink = currentRoster._links && currentRoster._links.add_agent;
+    if (!addLink) {
+        alert("This roster does not allow adding agents right now.");
+        return;
+    }
+    const res = await fetch(`${resolveHalUrl(addLink.href)}`, {
+        method: addLink.method,
         headers: {
             'Content-Type': 'application/json',
             'X-Player-Id': CURRENT_USER_ID,
@@ -363,11 +407,12 @@ window.removeAgent = async (agentKey) => {
 
     if (ROSTER_SERVICE === 'mock') {
         currentRoster.members = currentRoster.members.filter(m => m.agentKey !== agentKey);
+        currentRoster._links = mockServerLinks(currentRoster);
         renderRosterUI(currentRoster);
         return;
     }
 
-    const res = await fetch(`${ROSTER_SERVICE}${removeLink.href}`, {
+    const res = await fetch(resolveHalUrl(removeLink.href), {
         method: removeLink.method,
         headers: {
             'X-Player-Id': CURRENT_USER_ID,
@@ -388,22 +433,15 @@ async function executeHalAction(link) {
     const token = localStorage.getItem('jwt_token') || 'mock-jwt-token';
 
     if (ROSTER_SERVICE === 'mock') {
-        if (link.href.endsWith('/lock')) {
-            currentRoster.status = 'LOCKED';
-            currentRoster._links = { unlock: { href: "/api/v1/rosters/r-101/unlock", method: "POST" } };
-        } else if (link.href.endsWith('/unlock')) {
-            currentRoster.status = 'DRAFT';
-            currentRoster._links = {
-                lock_in: { href: "/api/v1/rosters/r-101/lock", method: "POST" },
-                add_agent: { href: "/api/v1/rosters/r-101/agents", method: "POST" }
-            };
-        }
+        if (link.href.endsWith('/lock')) currentRoster.status = 'LOCKED';
+        else if (link.href.endsWith('/unlock')) currentRoster.status = 'DRAFT';
+        currentRoster._links = mockServerLinks(currentRoster);
         renderRosterUI(currentRoster);
         return;
     }
 
     try {
-        const res = await fetch(`${ROSTER_SERVICE}${link.href}`, {
+        const res = await fetch(resolveHalUrl(link.href), {
             method: link.method,
             headers: { 
                 'X-Player-Id': CURRENT_USER_ID,
@@ -416,29 +454,117 @@ async function executeHalAction(link) {
     }
 }
 
+async function unarchiveRoster() {
+    const token = localStorage.getItem('jwt_token') || 'mock-jwt-token';
+    
+    if (ROSTER_SERVICE === 'mock') {
+        currentRoster.status = 'DRAFT';
+        currentRoster._links = mockServerLinks(currentRoster);
+        renderRosterUI(currentRoster);
+        return;
+    }
+
+    const unarchiveLink = currentRoster._links && currentRoster._links.unarchive;
+    if (!unarchiveLink) {
+        document.getElementById('match-result-card').innerHTML = `
+            <div class="p-4 bg-red-950/80 border border-red-500/60 rounded clip-card">
+                <span class="font-teko text-xl text-red-300 uppercase">Unarchive Failed</span>
+                <div class="text-xs font-mono text-gray-300 mt-1">This roster does not offer an unarchive action.</div>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const res = await fetch(resolveHalUrl(unarchiveLink.href), {
+            method: unarchiveLink.method,
+            headers: { 
+                'X-Player-Id': CURRENT_USER_ID,
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (res.ok) {
+            loadRoster();
+        } else {
+            const errorBody = await res.text();
+            let errorMessage = "Unknown error";
+            try {
+                const parsed = JSON.parse(errorBody);
+                errorMessage = parsed?._embedded?.errors?.[0]?.message || parsed?.message || errorBody;
+            } catch {
+                errorMessage = errorBody || "Unknown error";
+            }
+            document.getElementById('match-result-card').innerHTML = `
+                <div class="p-4 bg-red-950/80 border border-red-500/60 rounded clip-card">
+                    <span class="font-teko text-xl text-red-300 uppercase">Unarchive Failed</span>
+                    <div class="text-xs font-mono text-gray-300 mt-1">${errorMessage}</div>
+                </div>
+            `;
+        }
+    } catch (e) {
+        console.error("Unarchive failed:", e);
+        document.getElementById('match-result-card').innerHTML = `
+            <div class="p-4 bg-red-950/80 border border-red-500/60 rounded clip-card">
+                <span class="font-teko text-xl text-red-300 uppercase">Unarchive Failed</span>
+                <div class="text-xs font-mono text-gray-300 mt-1">${e.message || "Unknown error"}</div>
+            </div>
+        `;
+    }
+}
+
 const matchForm = document.getElementById('match-form');
 if (matchForm) {
     matchForm.onsubmit = async (e) => {
         e.preventDefault();
-        const token = localStorage.getItem('jwt_token');
-        const isWin = document.getElementById('outcome').value === 'WIN';
-        const margin = parseInt(document.getElementById('margin').value);
-        const acs = parseInt(document.getElementById('acs').value);
-        const kills = parseInt(document.getElementById('kills').value);
-        const deaths = parseInt(document.getElementById('deaths').value);
-        const assists = parseInt(document.getElementById('assists').value);
-
-        const payload = {
-            rosterId: currentRoster.id,
-            playerId: CURRENT_USER_ID,
-            mapName: currentRoster.mapName,
-            isWin, roundMargin: margin,
-            kills, deaths, assists, combatScore: acs, isAfk: false
-        };
+        // Clear any previous result (success or error) so a stale card can never linger.
+        const resultCard = document.getElementById('match-result-card');
+        if (resultCard) resultCard.innerHTML = '';
 
         try {
-            const res = await fetch(`${ANALYTICS_SERVICE}/api/v1/matches/submit`, {
-                method: 'POST',
+            if (!currentRoster) {
+                throw new Error('No active roster to submit a match for.');
+            }
+            const token = localStorage.getItem('jwt_token');
+            const isWin = document.getElementById('outcome').value === 'WIN';
+            const stats = {
+                roundMargin: parseInt(document.getElementById('margin').value, 10),
+                kills: parseInt(document.getElementById('kills').value, 10),
+                deaths: parseInt(document.getElementById('deaths').value, 10),
+                assists: parseInt(document.getElementById('assists').value, 10),
+                combatScore: parseInt(document.getElementById('acs').value, 10)
+            };
+            if (Object.values(stats).some(Number.isNaN)) {
+                throw new Error('Please fill all match stats (margin, kills, deaths, assists, ACS) with numbers.');
+            }
+
+            const payload = {
+                rosterId: currentRoster.id,
+                playerId: CURRENT_USER_ID,
+                mapName: currentRoster.mapName,
+                isWin,
+                ...stats,
+                isAfk: false
+            };
+
+            // HATEOAS: the roster's submit_match link says WHERE to submit and with
+            // what method. The frontend never hardcodes the analytics endpoint — the
+            // server owns that routing (note it can even be an absolute cross-service URL).
+            const submitLink = currentRoster._links && currentRoster._links.submit_match;
+            if (!submitLink) {
+                throw new Error('This roster is not open for match submission.');
+            }
+
+            if (ROSTER_SERVICE === 'mock') {
+                const deltaRR = isWin ? 17 : -14;
+                currentRoster.status = 'ARCHIVED';
+                currentRoster._links = mockServerLinks(currentRoster);
+                renderMatchResult({ matchId: `m-${Date.now()}`, deltaRR, tierStatus: isWin ? 'PROMOTED' : 'MAINTAINED' });
+                renderRosterUI(currentRoster);
+                return;
+            }
+
+            const res = await fetch(resolveHalUrl(submitLink.href), {
+                method: submitLink.method,
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -446,15 +572,53 @@ if (matchForm) {
                 body: JSON.stringify(payload)
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                renderMatchResult(data);
-            } else throw new Error();
+            if (res.status === 409) {
+                document.getElementById('match-result-card').innerHTML = `
+                    <div class="p-4 bg-amber-950/80 border border-amber-500/60 rounded clip-card">
+                        <span class="font-teko text-xl text-amber-300 uppercase">Match Already Submitted</span>
+                        <div class="text-xs font-mono text-gray-300 mt-1">This roster already has a match recorded. Unarchive to submit again.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            const rawBody = await res.text();
+            let data = null;
+            try {
+                data = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                data = null;
+            }
+
+            // Only a 2xx response carrying a well-formed result counts as success.
+            // Anything else (server error, malformed body, 2xx-with-error) falls through to the error card.
+            if (!res.ok || !isValidMatchResult(data)) {
+                const errorMessage =
+                    data?._embedded?.errors?.[0]?.message ||
+                    data?.message ||
+                    (rawBody && rawBody.trim()) ||
+                    `Analytics service returned ${res.status || 'no response'}`;
+                throw new Error(errorMessage);
+            }
+
+            renderMatchResult(data);
+            loadRoster();  // refresh roster to show ARCHIVED state
         } catch (e) {
-            const delta = isWin ? (15 + margin + (acs >= 300 ? 5 : 0)) : (-15 - margin);
-            renderMatchResult({ deltaRR: delta, tierStatus: delta > 20 ? 'PROMOTED' : 'MAINTAINED' });
+            console.error("Match submission failed:", e);
+            document.getElementById('match-result-card').innerHTML = `
+                <div class="p-4 bg-red-950/80 border border-red-500/60 rounded clip-card">
+                    <span class="font-teko text-xl text-red-300 uppercase">Match Submission Failed</span>
+                    <div class="text-xs font-mono text-gray-300 mt-1">${e.message || "Unknown error"}</div>
+                </div>
+            `;
         }
     };
+}
+
+export function isValidMatchResult(data) {
+    return !!data
+        && Number.isFinite(data.deltaRR)
+        && typeof data.tierStatus === 'string';
 }
 
 function renderMatchResult(data) {

@@ -9,6 +9,8 @@ import io.micronaut.http.filter.ServerFilterChain;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import ua.cdu.edu.fotius.fspm.valorant.roster.application.JwtTokenService;
 
@@ -25,6 +27,8 @@ import ua.cdu.edu.fotius.fspm.valorant.roster.application.JwtTokenService;
 @Filter(patterns = "/api/v1/**")
 @Singleton
 public class JwtAuthenticationFilter implements HttpServerFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private static final String LOGIN_PATH = "/api/v1/auth/login";
     private static final String AUTH_HEADER = "Authorization";
@@ -53,6 +57,7 @@ public class JwtAuthenticationFilter implements HttpServerFilter {
         String authHeader = request.getHeaders().get(AUTH_HEADER);
 
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
+            log.warn("Auth filter - missing/invalid Authorization header for {}", request.getPath());
             return Mono.just(HttpResponse.unauthorized()
                     .body(new RosterController.ErrorDto("MISSING_TOKEN",
                             "Authorization header with Bearer token is required")));
@@ -61,11 +66,13 @@ public class JwtAuthenticationFilter implements HttpServerFilter {
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         if (!tokenService.isValidToken(token)) {
+            log.warn("Auth filter - invalid token for {}", request.getPath());
             return Mono.just(HttpResponse.unauthorized()
                     .body(new RosterController.ErrorDto("INVALID_TOKEN",
                             "Token is invalid or expired")));
         }
 
+        log.info("Auth filter - authenticated: {} {}", request.getMethod(), request.getPath());
         // Token is valid — proceed to the controller
         return chain.proceed(request);
     }

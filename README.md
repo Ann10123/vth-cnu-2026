@@ -13,7 +13,7 @@
 
 ---
 
-## 0. Початок роботи з GitHub та елементи GitOps (GitHub Actions CI)
+## Початок роботи з GitHub та елементи GitOps (GitHub Actions CI)
 
 Робота над лабораторними виконується у вашому **власному форку** репозиторію (без створення Pull Request у оригінальний репозиторій викладача):
 
@@ -47,6 +47,57 @@
    * Використовує `@FunctionalInterface RatingPolicy` зі статичним методом `defaultCompetitivePolicy`.
    * **Завдання:** перевести розрахунок рейтингу на інжектовані `@Singleton` біни через `jakarta.inject` з конфігурованими коефіцієнтами.
 
+**Увага**: для спрощення ми використовуємо фіксоване призначення слотів в ростері до гравців в БД, тобто слот 1 призначається жорстко гравцю з `playerId="p-001"`, а слот 2 для `playerId="p-001"` і тд.
+
+---
+
+## Швидка навігація по монорепозиторію (утиліти fd та rg)
+
+Під час дослідження кодової бази та рефакторингу Match Analytics за зразком roster-service можна використати CLI-утиліти `fd` (пошук файлів і директорій) та `rg` (ripgrep - пошук по вмісту коду) замість ручного перегляду папок у IDE:
+
+1. Пошук файлів, пакетів та модулів (`fd`):
+   - Знайти всі директорії (пакети) в межах еталонного сервісу, щоб побачити його пошарову структуру:
+      ```bash
+      fd -t d . roster-service
+      ```
+   - Знайти всі Java-файли в конкретному мікросервісі:
+      ```bash
+      fd -e java . match-analytics-service 
+      ```
+   - Знайти всі файли контролерів у всьому монорепозиторії (ігноруючи регістр):
+      ```bash
+      fd -i controller
+      ```
+   - Знайти міграції бази даних або SQL-скрипти початкового заповнення (наприклад, V2__seed_data.sql):
+      ```bash
+      fd -e sql
+      ```
+   - Знайти конфігураційні файли сервісів (application.yml / .properties), де задані порти та URL сусідніх сервісів:
+      ```bash
+      fd "application\.(yml|yaml|properties)"
+      ```
+2. Пошук класів, методів та місць їх виклику (`rg`):
+   - Знайти оголошення класів та інтерфейсів у пакеті сервісу (наприклад, у roster-service):
+      ```bash
+      rg "class |interface " roster-service
+      ```
+   - Знайти оголошення конкретного класу (наприклад, RosterApplicationService або обробника винятків):
+      ```bash
+      rg "class (RosterApplicationService|DomainExceptionHandler)"
+      ```
+   - Знайти всі публічні методи в сервісах додатку або контролерах (пошук лише по Java-файлах через -t java):
+      ```bash
+      rg -t java "public .*\(" match-analytics-service
+      ```
+   - Знайти всі місця, де викликається конкретний метод чи інтеграційний клієнт (наприклад, звернення до rankClient або rosterClient):
+      ```bash
+      rg -t java "(rankClient|rosterClient)\." match-analytics-service
+      ```
+   - Знайти ендпоінти REST API (анотації @Get, @Post, @Patch, @Controller) по всьому проєкту:
+      ```bash
+      rg -t java "@(Controller|Get|Post|Patch|Delete)"
+      ```
+
 ---
 
 ## 1. Ініціалізація та локальний запуск (Після Лекції "Плануємо мікросервісний додаток")
@@ -74,6 +125,50 @@
 5. **Запуск тестів** (Unit + Testcontainers PostgreSQL 18):
    ```bash
    make test
+   ```
+
+### Команди перевірки REST-сервісів
+
+Команди подано з авторизацією Капітана (`jwt-token-for-ProGamer#EUW`) та ID його користувача `p-001`. Інших можна знайти в коді (roseter-service -> V2__seed_data.sql).
+
+1. Стан ростеру 
+   ```bash
+   curl -i -H "Authorization: Bearer jwt-token-for-ProGamer#EUW" http://localhost:8080/api/v1/rosters/r-101
+   ```
+2. Призначення агента в драфті ростера
+   ```bash
+   curl -i -X POST \
+      -H "Authorization: Bearer jwt-token-for-ProGamer#EUW" \
+      -H "Content-Type: application/json" \
+      -H "X-Player-Id: p-001" \
+      -d '{
+         "slot": 3,
+         "playerId": "p-003",
+         "agentKey": "abs"
+      }' \
+      http://localhost:8080/api/v1/rosters/r-101/agents
+   ```
+   Де: 
+      - slot (1..5) — номер слоту в команді (наприклад, 5 для тестування додавання 5-го чи 6-го агента в DRAFT або зміни вже зафіксованого складу LOCKED).
+      - agentId — ідентифікатор агента з каталогу valorant-api.com (у прикладі вказано UUID агента Jett, оскільки в коді є валідація формату UUID агентів).
+      - playerId — ідентифікатор гравця, який обирає цього агента.  
+3. Видалення агента з ростеру
+   ```bash
+   curl -i -X DELETE \
+      -H "Authorization: Bearer jwt-token-for-ProGamer#EUW" \
+      -H "X-Player-Id: p-001" \
+      http://localhost:8080/api/v1/rosters/r-101/agents/deadlock
+   ```  
+4. Запит аналітики (для гравця `playerId="p-001"`)
+   ```bash
+   curl -i http://localhost:8081/api/v1/matches/history/p-001
+   ```    
+5. Безпосереднє обчислення рангу в rank-calculator-service:
+   ```bash
+   curl -i -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"isWin":true,"roundMargin":5,"kills":22,"deaths":12,"assists":5,"combatScore":310,"isAfk":false}' \
+      http://localhost:8082/internal/v1/calculate-rating
    ```
 
 ---

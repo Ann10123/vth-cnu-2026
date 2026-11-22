@@ -1,7 +1,7 @@
 # Valorant Tactical Hub — Monorepo Automation Makefile
 GRADLE_VERSION := 9.9.1
 
-.PHONY: setup-gradle init up-db down-db test build-docker run-roster run-analytics run-rank dev-frontend dev-mock dev-api deploy-cloud deploy-frontend
+.PHONY: setup-gradle init up-db down-db test build build-docker run-roster run-analytics run-rank dev-frontend dev-mock dev-api deploy-cloud deploy-frontend
 
 # --- Підготовка проєкту та залежностей ---
 setup-gradle:
@@ -22,6 +22,10 @@ down-db:
 
 test:
 	./gradlew test
+	npm --prefix frontend run test
+
+build:
+	./gradlew clean build
 	npm --prefix frontend run test
 
 run-roster:

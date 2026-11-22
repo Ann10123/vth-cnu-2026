@@ -1,5 +1,6 @@
 package ua.cdu.edu.fotius.fspm.valorant.analytics.infrastructure.client;
 
+import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Post;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.serde.annotation.Serdeable;
@@ -10,5 +11,5 @@ public interface RankCalculatorClient {
     @Serdeable record RankCalculationResponse(int deltaRR, String tierStatus) {}
 
     @Post("/internal/v1/calculate-rating")
-    RankCalculationResponse calculateRating(RankCalculationRequest request);
+    RankCalculationResponse calculateRating(@Body RankCalculationRequest request);
 }

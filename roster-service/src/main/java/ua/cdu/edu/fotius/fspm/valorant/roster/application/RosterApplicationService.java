@@ -65,6 +65,12 @@ public class RosterApplicationService {
         rosterRepository.save(roster);
     }
 
+    public void unarchive(RosterId rosterId) {
+        Roster roster = getRoster(rosterId);
+        roster.unarchive();
+        rosterRepository.save(roster);
+    }
+
     public PlayerId findPlayerIdByTag(String playerTag) {
         return rosterRepository.findPlayerIdByTag(playerTag)
             .orElseThrow(() -> new IllegalArgumentException("Player not found: " + playerTag));

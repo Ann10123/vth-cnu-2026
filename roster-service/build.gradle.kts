@@ -8,7 +8,6 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("io.micronaut.sql:micronaut-jdbi")
     implementation("io.micronaut:micronaut-http-client")
-    implementation("io.micronaut.security:micronaut-security-annotations:5.0.0")
     implementation("io.projectreactor:reactor-core:3.6.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.19.2")
     runtimeOnly("io.micronaut.sql:micronaut-jdbc-hikari")
@@ -17,7 +16,6 @@ dependencies {
 
     testImplementation("io.micronaut.test:micronaut-test-junit5")
     testImplementation("org.junit.jupiter:junit-jupiter-api")
-    testImplementation("com.fasterxml.jackson.core:jackson-databind:2.19.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 

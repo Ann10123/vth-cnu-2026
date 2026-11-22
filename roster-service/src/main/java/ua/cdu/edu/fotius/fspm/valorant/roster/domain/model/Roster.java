@@ -62,7 +62,7 @@ public class Roster {
         ensureDraftState("remove agent");
         boolean removed = members.removeIf(m -> m.getAgentKey().equals(agentKey));
         if (!removed) {
-            throw new DomainException("AGENT_NOT_FOUND", "Agent " + agentKey.value() + " is not in the roster");
+            throw new DomainException("NOT_FOUND_AGENT", "Agent " + agentKey.value() + " is not in the roster");
         }
     }
 
@@ -73,7 +73,7 @@ public class Roster {
         RosterMember newCaptainMember = members.stream()
             .filter(m -> m.getPlayerId().equals(newCaptainId))
             .findFirst()
-            .orElseThrow(() -> new DomainException("MEMBER_NOT_FOUND", "New captain must be a current member of the roster"));
+            .orElseThrow(() -> new DomainException("NOT_FOUND_MEMBER", "New captain must be a current member of the roster"));
 
         members.stream()
             .filter(m -> m.getPlayerId().equals(this.captainId))
@@ -104,9 +104,16 @@ public class Roster {
 
     public void archive() {
         if (this.status == RosterStatus.ARCHIVED) {
-            return;
+            throw new DomainException("ROSTER_ALREADY_ARCHIVED", "Roster " + id.value() + " is already archived");
         }
         this.status = RosterStatus.ARCHIVED;
+    }
+
+    public void unarchive() {
+        if (this.status != RosterStatus.ARCHIVED) {
+            throw new DomainException("INVALID_STATE_TRANSITION", "Only ARCHIVED roster can be unarchived back to DRAFT");
+        }
+        this.status = RosterStatus.DRAFT;
     }
 
     private void ensureCaptain(PlayerId actorId) {

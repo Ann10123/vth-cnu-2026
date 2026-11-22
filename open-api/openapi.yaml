@@ -171,6 +171,92 @@ paths:
         '204':
           description: Roster unlocked
 
+  /api/v1/rosters/{id}/archive:
+    post:
+      summary: Archive roster (Captain Only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Roster archived
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '401':
+          description: Unauthorized - missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '403':
+          description: Forbidden - not the roster captain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '404':
+          description: Roster not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '409':
+          description: Conflict - roster is already archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+
+  /api/v1/rosters/{id}/unarchive:
+    post:
+      summary: Unarchive roster back to DRAFT state (Captain Only)
+      tags: [Roster Service]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Roster unarchived
+        '400':
+          description: Bad request - roster is not ARCHIVED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '401':
+          description: Unauthorized - missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '403':
+          description: Forbidden - not the roster captain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+        '404':
+          description: Roster not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDto'
+
   /api/v1/matches/submit:
     post:
       summary: Submit match results

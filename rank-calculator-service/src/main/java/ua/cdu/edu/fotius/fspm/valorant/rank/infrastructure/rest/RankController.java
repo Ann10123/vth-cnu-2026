@@ -9,6 +9,8 @@ import io.micronaut.validation.Validated;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ua.cdu.edu.fotius.fspm.valorant.rank.domain.RatingPolicy;
 
 import java.util.Map;
@@ -16,6 +18,8 @@ import java.util.Map;
 @Validated
 @Controller("/internal/v1")
 public class RankController {
+
+    private static final Logger log = LoggerFactory.getLogger(RankController.class);
 
     private final RatingPolicy ratingPolicy = RatingPolicy::defaultCompetitivePolicy;
 
@@ -51,7 +55,11 @@ public class RankController {
 
     @Post("/calculate-rating")
     public HttpResponse<?> calculateRating(@Valid @Body RankCalculationRequest request) {
+        log.info("POST /internal/v1/calculate-rating - isWin={}, roundMargin={}, kills={}, deaths={}, assists={}, combatScore={}, isAfk={}",
+            request.isWin(), request.roundMargin(), request.kills(), request.deaths(),
+            request.assists(), request.combatScore(), request.isAfk());
         if (request.deaths() > 24) {
+            log.warn("POST /internal/v1/calculate-rating - deaths exceed 24: {}", request.deaths());
             return HttpResponse.badRequest(Map.of(
                 "code", "IMPOSSIBLE_MATCH_STATS",
                 "message", "Deaths cannot exceed 24 in a regulation match"
@@ -68,6 +76,7 @@ public class RankController {
             request.isAfk()
         );
         var result = ratingPolicy.calculate(stats);
+        log.info("POST /internal/v1/calculate-rating - deltaRR={}, tierStatus={}", result.deltaRR(), result.tierStatus());
         return HttpResponse.ok(new RankCalculationResponse(result.deltaRR(), result.tierStatus()));
     }
 }

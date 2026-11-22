@@ -1,4 +1,5 @@
 dependencies {
+    annotationProcessor("io.micronaut:micronaut-inject-java")
     annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
     implementation("io.micronaut.serde:micronaut-serde-jackson")
     implementation("io.micronaut.flyway:micronaut-flyway")
